@@ -2,7 +2,7 @@
 
 <p id="description">This script allows you to automatically scrape memes from Reddit compile them into a video and upload the video to YouTube. It’s perfect for creating meme compilations with minimal effort!</p>
 
-<p align="center"><img src="![Stars](https://img.shields.io/github/stars/Arandomdude222/Yt-automater?style=social)" alt="shields"></p>
+![Stars](https://img.shields.io/github/stars/Arandomdude222/Yt-automater?style=social)
 
   
   
