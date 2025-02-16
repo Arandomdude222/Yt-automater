@@ -6,9 +6,7 @@
 
   
   
-<h2>🧐 Features</h2>
-
-Here're some of the project's best features:
+<h2>🧐 What does it do?</h2>
 
 *   scarpes memes from reddit
 *   It combines all the memes into a single cohesive video compilation
