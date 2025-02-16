@@ -1,6 +1,6 @@
 # YOUTUBEAUTOMATER
 
-![Star on GitHub](https://img.shields.io/github/stars/yourusername/yourautomaterrepo?style=social)
+![Star on GitHub](https://img.shields.io/github/stars/Arandomdude222/Yt-automater?style=social)
 
 ## How to Install
 
