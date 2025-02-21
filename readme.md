@@ -30,7 +30,8 @@ reddit: https://alpscode.com/blog/how-to-use-reddit-api/      youtube: https://w
 <p>5. Run in terimal:</p>
 
 ```
-pip install praw requests moviepy google-api-python-client google-auth-oauthlib google-auth
+pip install praw requests moviepy edge-tts google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+
 ```
 
 <p>6. then</p>
