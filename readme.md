@@ -18,7 +18,10 @@
 <p>1. Download PYTHON and setup a youtube api and a reddit api</p>
 
 ```
-reddit: https://alpscode.com/blog/how-to-use-reddit-api/      youtube: https://www.getphyllo.com/post/how-to-get-youtube-api-key
+reddit: https://alpscode.com/blog/how-to-use-reddit-api/
+```
+```
+youtube: https://www.getphyllo.com/post/how-to-get-youtube-api-key
 ```
 
 <p>2. Download Main.py</p>
