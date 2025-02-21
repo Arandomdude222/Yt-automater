@@ -97,11 +97,11 @@ def compile_memes(memes, output_file='meme_compilation.mp4', duration_per_meme=2
     clips = []
     for meme in memes:
         if meme['file_extension'] in ['jpg', 'jpeg', 'png']:
-            clip = ImageClip(meme['file_path']).with_duration(duration_per_meme).resize(resolution)
+            clip = ImageClip(meme['file_path']).with_duration(duration_per_meme).resized(resolution)
         elif meme['file_extension'] in ['gif', 'mp4']:
-            clip = VideoFileClip(meme['file_path']).resize(resolution)
+            clip = VideoFileClip(meme['file_path']).resized(resolution)
         audio_clip = AudioFileClip(meme['tts_path'])
-        clip = clip.set_audio(audio_clip)
+        clip = clip.with_audio(audio_clip)
         clips.append(clip)
     final_clip = concatenate_videoclips(clips, method="compose")
     final_clip.write_videofile(output_file, fps=24)
