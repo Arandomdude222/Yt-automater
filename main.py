@@ -1,27 +1,29 @@
 import praw
 import requests
 import os
+import sys
 from moviepy import *
+from edge_tts import Communicate
+import asyncio
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
-import sys
 
 # Reddit API credentials
-REDDIT_CLIENT_ID = '????'  # Replace with your Reddit Client ID
-REDDIT_CLIENT_SECRET = '????'  # Replace with your Reddit Client Secret
-REDDIT_USER_AGENT = 'youruseragent (by u/yourusername)'  # Replace with your User Agent
+REDDIT_CLIENT_ID = '???'
+REDDIT_CLIENT_SECRET = '???'
+REDDIT_USER_AGENT = 'useragaent (by u/PutYourUsernameHere)' # fill it out
 
 # YouTube API credentials
-YOUTUBE_CLIENT_SECRET_FILE = 'sercet_token.json'  # download your youtube api key token and put it here in the same dir
+YOUTUBE_CLIENT_SECRET_FILE = 'sercet-token.json'
 YOUTUBE_SCOPES = ['https://www.googleapis.com/auth/youtube.upload']
 YOUTUBE_API_SERVICE_NAME = 'youtube'
 YOUTUBE_API_VERSION = 'v3'
 
 # Step 1: Scrape Reddit Meme Posts
-def scrape_reddit_memes(subreddit_name, limit=29):
+def scrape_reddit_memes(subreddit_name, limit=35):
     reddit = praw.Reddit(
         client_id=REDDIT_CLIENT_ID,
         client_secret=REDDIT_CLIENT_SECRET,
@@ -44,38 +46,50 @@ def download_memes(memes, folder='memes'):
         os.makedirs(folder)
     for meme in memes:
         response = requests.get(meme['url'])
-        file_path = f"{folder}/{meme['title']}.{meme['file_extension']}"
+        safe_title = ''.join(c if c.isalnum() or c in " -_" else "_" for c in meme['title'])
+        file_path = f"{folder}/{safe_title}.{meme['file_extension']}"
         with open(file_path, 'wb') as f:
             f.write(response.content)
         meme['file_path'] = file_path
     return memes
 
-# Step 3: Put all memes into a vid
-def compile_memes(memes, output_file='meme_compilation.mp4', duration_per_meme=5, resolution=(1920, 1080)):
+# Step 3: Generate TTS for Image Titles
+async def generate_tts(text, output_file):
+    communicate = Communicate(text, voice="en-US-AriaNeural")  # Energetic Edge/TikTok voice
+    await communicate.save(output_file)
+
+def generate_all_tts(memes, folder='tts'):
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+    loop = asyncio.get_event_loop()
+    tasks = []
+    for meme in memes:
+        safe_title = ''.join(c if c.isalnum() or c in " -_" else "_" for c in meme['title'])
+        tts_path = f"{folder}/{safe_title}.mp3"
+        tasks.append(generate_tts(meme['title'], tts_path))
+        meme['tts_path'] = tts_path
+    loop.run_until_complete(asyncio.gather(*tasks))
+    return memes
+
+# Step 4: Compile Memes into a Video
+def compile_memes(memes, output_file='meme_compilation.mp4', duration_per_meme=2, resolution=(1920, 1080)):
     clips = []
     for meme in memes:
         if meme['file_extension'] in ['jpg', 'jpeg', 'png']:
-            # For images, create a clip with a fixed duration and resize to the resolution
-            clip = ImageClip(meme['file_path']).with_duration(duration_per_meme).resized(resolution)
+            clip = ImageClip(meme['file_path']).with_duration(duration_per_meme).resize(resolution)
         elif meme['file_extension'] in ['gif', 'mp4']:
-            # For videos, resize to the resolution
-            clip = VideoFileClip(meme['file_path']).resized(resolution)
+            clip = VideoFileClip(meme['file_path']).resize(resolution)
+        
+        # Add TTS voiceover
+        audio_clip = AudioFileClip(meme['tts_path'])
+        clip = clip.set_audio(audio_clip)
         clips.append(clip)
-
-    # Concatenate all clips
+    
     final_clip = concatenate_videoclips(clips, method="compose")
-
-    # Add background music
-    background_music = AudioFileClip("background_music.mp3")  # Use the one that came with it or use your own one
-    final_clip = final_clip.with_audio(background_music)
-
-    # Save the final video
     final_clip.write_videofile(output_file, fps=24)
 
-
-# Step 4: Upload Video to YouTube
+# Step 5: Upload Video to YouTube
 def upload_to_youtube(video_file, title, description, tags, category_id='22'):
-    # Authenticate with YouTube API
     creds = None
     if os.path.exists('token.json'):
         creds = Credentials.from_authorized_user_file('token.json', YOUTUBE_SCOPES)
@@ -87,10 +101,9 @@ def upload_to_youtube(video_file, title, description, tags, category_id='22'):
             creds = flow.run_local_server(port=0)
         with open('token.json', 'w') as token:
             token.write(creds.to_json())
-
+    
     youtube = build(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION, credentials=creds)
-
-    # Upload the video
+    
     request = youtube.videos().insert(
         part='snippet,status',
         body={
@@ -101,7 +114,7 @@ def upload_to_youtube(video_file, title, description, tags, category_id='22'):
                 'categoryId': category_id
             },
             'status': {
-                'privacyStatus': 'public' 
+                'privacyStatus': 'public'
             }
         },
         media_body=MediaFileUpload(video_file)
@@ -111,24 +124,14 @@ def upload_to_youtube(video_file, title, description, tags, category_id='22'):
 
 # Main Function
 def main():
-    # Step 1: Scrape Reddit Meme Posts
-    subreddit_name = 'memes'  # Change to your desired subreddit
-    memes = scrape_reddit_memes(subreddit_name, limit=29)
-
-    # Step 2: Download Memes
+    subreddit_name = 'memes'
+    memes = scrape_reddit_memes(subreddit_name, limit=20)
     memes = download_memes(memes)
-
-    # Step 3: Compile Memes into a Video
+    memes = generate_all_tts(memes)
     video_file = 'meme_compilation.mp4'
-    compile_memes(memes, video_file, duration_per_meme=5) # How many secs does meme stay on for
-
-    # Step 4: Upload to YouTube
-    title = 'Top 20 Memes of the Week | Reddit Meme Compilation'
-    description = 'Check out these hilarious memes from Reddit!'
-    tags = ['memes', 'Reddit', 'meme compilation']
-    #os.execv(sys.executable, ['python3', 'upload.py'] + sys.argv[1:])
-    upload_to_youtube(video_file, title, description, tags)
-    
+    compile_memes(memes, video_file, duration_per_meme=2)
+    upload_to_youtube(video_file, 'Top Memes Compilation', 'Enjoy these top memes!', ['memes', 'Reddit', 'funny'])
+    os.execv(sys.executable, ['python3', 'noob.py'] + sys.argv[1:])
 
 if __name__ == '__main__':
     main()
