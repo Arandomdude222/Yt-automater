@@ -7,9 +7,6 @@ from googleapiclient.http import MediaFileUpload
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
-import sys
-import pytesseract
-from PIL import Image
 import edge_tts
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -17,12 +14,12 @@ import time
 import json
 
 # Reddit API credentials
-REDDIT_CLIENT_ID = 'pt-JR8zhqvg1H_mKZRlQPQ'  # Replace with your Reddit Client ID
-REDDIT_CLIENT_SECRET = '53p50OUUOZ9TL83x_eK5kuSvQloG-w'  # Replace with your Reddit Client Secret
-REDDIT_USER_AGENT = 'python:MyYouTubeAutomation:v1.0 (by u/Nice-Preparation-804)'  # Replace with your User Agent
+REDDIT_CLIENT_ID = ''  # Replace with your Reddit Client ID
+REDDIT_CLIENT_SECRET = ''  # Replace with your Reddit Client Secret
+REDDIT_USER_AGENT = '??? (by u/USERNAME)'  # Replace with your User Agent
 
 # YouTube API credentials
-YOUTUBE_CLIENT_SECRET_FILE = '/home/zay/python-projects11/yt=automater/sercet-token.json'  # Path to your YouTube API credentials file
+YOUTUBE_CLIENT_SECRET_FILE = 'sercet-token.json'  # Path to your YouTube API credentials file
 YOUTUBE_SCOPES = ['https://www.googleapis.com/auth/youtube.upload']
 YOUTUBE_API_SERVICE_NAME = 'youtube'
 YOUTUBE_API_VERSION = 'v3'
@@ -41,7 +38,6 @@ def load_processed_memes():
 def save_processed_memes(processed_memes):
     with open(LOG_FILE, 'w') as f:
         json.dump(list(processed_memes), f)
-
 
 async def generate_tts(text, output_file='output.mp3'):
     output_path = os.path.join('tts', output_file)
@@ -94,16 +90,22 @@ def scrape_reddit_memes(subreddit_name, limit=60):
     save_processed_memes(processed_memes)
     return memes
 
-def download_memes(memes, folder='memes'):
-    if not os.path.exists(folder):
-        os.makedirs(folder)
-    for meme in memes:
+async def download_meme(meme, folder='memes'):
+    try:
         response = requests.get(meme['url'])
         file_path = f"{folder}/{meme['title']}.{meme['file_extension']}"
         with open(file_path, 'wb') as f:
             f.write(response.content)
         meme['file_path'] = file_path
-    return memes
+        print(f"Downloaded meme: {meme['title']}")
+    except Exception as e:
+        print(f"Failed to download meme {meme['title']}: {e}")
+
+async def download_memes_async(memes, folder='memes'):
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+    tasks = [download_meme(meme, folder) for meme in memes]
+    await asyncio.gather(*tasks)
 
 def compile_memes(memes, output_file='meme_compilation.mp4', duration_per_meme=3, resolution=(1920, 1080)):
     clips = []
@@ -178,11 +180,11 @@ def process_tts_for_memes(memes):
         for future in futures:
             future.result()
 
-def main():
+async def main():
     subreddit_name = 'memes'
     memes = scrape_reddit_memes(subreddit_name, limit=60)
     process_tts_for_memes(memes)
-    memes = download_memes(memes)
+    await download_memes_async(memes)
     video_file = 'meme_compilation.mp4'
     compile_memes(memes, video_file, duration_per_meme=3)
     title = 'Top 60 Memes of the Week | Reddit Meme Compilation'
@@ -192,5 +194,5 @@ def main():
 
 if __name__ == '__main__':
     start_time = time.time()
-    main()
+    asyncio.run(main())
     print(f"Process completed in {time.time() - start_time} seconds")
