@@ -200,28 +200,17 @@ def main():
     tags = [
         'memes', 'Reddit', 'meme compilation', 'funny', 'dankmemes',
         'dankmemesdaily', 'dankmemesonly', 'dankmemescomp', 'dankmemes4life',
-        'dankmemesgang', 'dankmemesaredank', 'dankmemesvideo', 'dankmemessociety',
-        'dankmemesmatter', 'dankmemesforlife', 'dankmemesedition', 'dankmemesforyou',
-        'dankmemesforever', 'dankmemesxd', 'dankmemes2025', 'dankmemescommunity',
-        'dankmemeshub', 'dankmemeslover', 'dankmemesfunny', 'dankmemesfactory',
-        'dankmemesclips', 'dankmemes2k24', 'dankmemespage', 'dankmemesclub',
         'epicmemes', 'goodmemes', 'funnymemes', 'spicymemes', 'viralmemes',
-        'bestmemes', 'hilariousmemes', 'stupidmemes', 'memesfordays', 'memesdaily',
-        'memestagram', 'memecompilation', 'memefeed', 'memelord', 'memepage',
-        'relatablememes', 'offensivememes', 'darkhumor', 'edgymemes', 'comedy',
-        'memesofinstagram', 'memesfunny', 'memestime', 'freshmemes', 'dailymemes',
-        'funniestmemes', 'weirdmemes', 'randommemes', 'bestdankmemes', 'memeworld',
-        'memehumor', 'memesarelife', 'internetmemes', 'memeculture', 'edgymeme',
-        'viralcontent', 'shitposting', 'funnycontent', 'topmemes', 'humormemes',
-        'memetrend', 'trendingmemes', 'memelove', 'mememachine', 'memezone',
-        'dankmemecompilation', 'funnyvideos', 'comedyclips', 'memesforfun', 'lmao',
-        'wtfmemes', 'laughchallenge', 'memejunkie', 'memeaddict', 'memefan',
-        'memecollection', 'memefest', 'funnyclips', 'sillymemes', 'dumbmemes',
-        'memehype', 'dankvibes', 'jokes', 'crazyfunny', 'randomhumor',
-        'internetfunny', 'dailyfunnyposts', 'toofunny', 'humorclips', 'rofl',
-        'memecreator', 'lulz', 'classicmemes', 'memecomp', 'foryou',
-        'foryoupage', 'memeentertainment', 'lolmemes', 'haha', 'laughoutloud'
+        'bestmemes', 'hilariousmemes', 'memesfordays', 'memesdaily',
+        'memestagram', 'memecompilation', 'memelord', 'relatablememes',
+        'funniestmemes', 'randommemes', 'memeworld', 'memesarelife',
+        'internetmemes', 'memeculture', 'viralcontent', 'funnyvideos',
+        'trendingmemes', 'memezone', 'dankmemecompilation', 'comedyclips',
+        'laughchallenge', 'memefan', 'memecollection', 'memefest', 'sillymemes',
+        'memehype', 'jokes', 'humorclips', 'classicmemes', 'memecomp',
+        'foryou', 'foryoupage', 'memeentertainment', 'lolmemes', 'laughoutloud'
     ]
+
 
     upload_to_youtube(video_file, title, description, tags)
 
