@@ -1,7 +1,8 @@
 import praw
 import requests
 import os
-from moviepy import *
+import re
+from moviepy import ImageClip, VideoFileClip, concatenate_videoclips, AudioFileClip, CompositeAudioClip
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from google.oauth2.credentials import Credentials
@@ -9,25 +10,21 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 import edge_tts
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 import time
 import json
 
 # Reddit API credentials
-REDDIT_CLIENT_ID = ''  # Replace with your Reddit Client ID
-REDDIT_CLIENT_SECRET = ''  # Replace with your Reddit Client Secret
-REDDIT_USER_AGENT = '??? (by u/USERNAME)'  # Replace with your User Agent
+REDDIT_CLIENT_ID = '???'  # Replace with your Reddit Client ID
+REDDIT_CLIENT_SECRET = '???'  # Replace with your Reddit Client Secret
+REDDIT_USER_AGENT = 'python:YTautomater:v1.0 (by u/Username)'  # Replace with your User Agent
 
 # YouTube API credentials
-YOUTUBE_CLIENT_SECRET_FILE = 'sercet-token.json'  # Path to your YouTube API credentials file
+YOUTUBE_CLIENT_SECRET_FILE = 'sercet-token.json'  # Put it in the same dir
 YOUTUBE_SCOPES = ['https://www.googleapis.com/auth/youtube.upload']
 YOUTUBE_API_SERVICE_NAME = 'youtube'
 YOUTUBE_API_VERSION = 'v3'
 
 LOG_FILE = 'processed_memes.log'
-
-if not os.path.exists('tts'):
-    os.makedirs('tts')
 
 def load_processed_memes():
     if os.path.exists(LOG_FILE):
@@ -40,12 +37,10 @@ def save_processed_memes(processed_memes):
         json.dump(list(processed_memes), f)
 
 async def generate_tts(text, output_file='output.mp3'):
-    output_path = os.path.join('tts', output_file)
     communicate = edge_tts.Communicate(text, voice='en-US-AriaNeural', rate='+30%', pitch='+10Hz')
-    await communicate.save(output_path)
-    print(f"Saved TTS file to: {output_path}")
+    await communicate.save(output_file)
 
-def scrape_reddit_memes(subreddit_name, limit=60):
+def scrape_reddit_memes(subreddit_name, limit=70, sort_methods=['hot', 'new', 'top', 'controversial']):
     reddit = praw.Reddit(
         client_id=REDDIT_CLIENT_ID,
         client_secret=REDDIT_CLIENT_SECRET,
@@ -53,59 +48,81 @@ def scrape_reddit_memes(subreddit_name, limit=60):
     )
     subreddit = reddit.subreddit(subreddit_name)
     memes = []
-    last_post = None
-    requests_made = 0
     processed_memes = load_processed_memes()
 
-    for i in range(0, limit, 30):
-        batch = []
-        if last_post:
-            submissions = subreddit.hot(limit=30, params={'after': last_post})
-        else:
-            submissions = subreddit.hot(limit=30)
-        
-        for submission in submissions:
-            if submission.url.endswith(('.jpg', '.jpeg', '.png', '.gif', '.mp4')):
-                if submission.url not in processed_memes:
-                    batch.append({
-                        'title': submission.title,
-                        'url': submission.url,
-                        'file_extension': submission.url.split('.')[-1],
-                        'id': submission.id
-                    })
-                    processed_memes.add(submission.url)
-            last_post = submission.name
-        
-        memes.extend(batch)
-        print(f"Fetched {len(batch)} memes.")
+    for sort_method in sort_methods:
+        print(f"Fetching memes from '{sort_method}' feed...")
+        last_post = None
+        requests_made = 0
 
-        requests_made += 1
-        if requests_made % 10 == 0:
-            print("Pausing for 28 seconds to stay within Reddit's rate limit...")
-            time.sleep(28)
-        
-        if len(batch) == 30:
-            time.sleep(28)
+        while len(memes) < limit:
+            batch = []
+            try:
+                if last_post:
+                    submissions = getattr(subreddit, sort_method)(limit=100, params={'after': last_post})
+                else:
+                    submissions = getattr(subreddit, sort_method)(limit=100)
+                
+                for submission in submissions:
+                    # Skip text-only posts and ensure URL ends with a valid media extension
+                    if (not submission.is_self and 
+                        submission.url.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.mp4')) and 
+                        submission.id not in processed_memes):
+                        meme = {
+                            'title': submission.title,
+                            'url': submission.url,
+                            'file_extension': submission.url.split('.')[-1].lower(),
+                            'id': submission.id
+                        }
+                        batch.append(meme)
+                        processed_memes.add(submission.id)
+                        if len(batch) + len(memes) >= limit:
+                            break
+                    last_post = submission.name
+                
+                memes.extend(batch)
+                print(f"Fetched {len(batch)} memes from '{sort_method}'. Total memes so far: {len(memes)}")
+
+                if len(batch) == 0:
+                    print(f"No more memes found in '{sort_method}' feed.")
+                    break
+
+                requests_made += 1
+                if requests_made % 500 == 0:  # Pause after 500 requests
+                    print("Pausing for 60 seconds to stay within Reddit's rate limit...")
+                    time.sleep(60)
+            except Exception as e:
+                print(f"Error fetching memes from '{sort_method}': {e}")
+                break
+
+        if len(memes) >= limit:
+            break
 
     save_processed_memes(processed_memes)
-    return memes
+    return memes[:limit]
 
-async def download_meme(meme, folder='memes'):
-    try:
-        response = requests.get(meme['url'])
-        file_path = f"{folder}/{meme['title']}.{meme['file_extension']}"
-        with open(file_path, 'wb') as f:
-            f.write(response.content)
-        meme['file_path'] = file_path
-        print(f"Downloaded meme: {meme['title']}")
-    except Exception as e:
-        print(f"Failed to download meme {meme['title']}: {e}")
+def sanitize_filename(title):
+    # Replace invalid characters with underscores
+    sanitized = re.sub(r'[<>:"/\\|?*]', '_', title)
+    # Limit the filename length to avoid issues
+    return sanitized[:50]  # Adjust the length as needed
 
-async def download_memes_async(memes, folder='memes'):
+def download_memes(memes, folder='memes'):
     if not os.path.exists(folder):
         os.makedirs(folder)
-    tasks = [download_meme(meme, folder) for meme in memes]
-    await asyncio.gather(*tasks)
+    for meme in memes:
+        try:
+            response = requests.get(meme['url'])
+            # Sanitize the title to create a valid filename
+            sanitized_title = sanitize_filename(meme['title'])
+            file_path = f"{folder}/{sanitized_title}.{meme['file_extension']}"
+            with open(file_path, 'wb') as f:
+                f.write(response.content)
+            meme['file_path'] = file_path
+        except Exception as e:
+            print(f"Error downloading meme {meme['title']}: {e}")
+            continue
+    return memes
 
 def compile_memes(memes, output_file='meme_compilation.mp4', duration_per_meme=3, resolution=(1920, 1080)):
     clips = []
@@ -113,16 +130,13 @@ def compile_memes(memes, output_file='meme_compilation.mp4', duration_per_meme=3
         try:
             if meme['file_extension'] in ['jpg', 'jpeg', 'png']:
                 clip = ImageClip(meme['file_path']).with_duration(duration_per_meme).resized(resolution)
+                tts_audio = AudioFileClip(f"audio_{meme['id']}.mp3")
+                clip = clip.with_audio(tts_audio)
                 clips.append(clip)
             elif meme['file_extension'] in ['gif', 'mp4']:
-                if meme['file_extension'] == 'gif':
-                    try:
-                        clip = VideoFileClip(meme['file_path'], codec='gif').resized(resolution)
-                    except OSError:
-                        print(f"Skipping corrupt GIF: {meme['file_path']}")
-                        continue
-                else:
-                    clip = VideoFileClip(meme['file_path']).resized(resolution)
+                clip = VideoFileClip(meme['file_path']).resized(resolution)
+                tts_audio = AudioFileClip(f"audio_{meme['id']}.mp3")
+                clip = clip.with_audio(CompositeAudioClip([clip.audio, tts_audio]) if clip.audio else tts_audio)
                 clips.append(clip)
         except Exception as e:
             print(f"Error processing meme {meme['title']}: {e}")
@@ -133,8 +147,6 @@ def compile_memes(memes, output_file='meme_compilation.mp4', duration_per_meme=3
         return
 
     final_clip = concatenate_videoclips(clips, method="compose")
-    background_music = AudioFileClip("background_music.mp3")
-    final_clip = final_clip.with_audio(background_music)
     final_clip.write_videofile(output_file, fps=24)
 
 def upload_to_youtube(video_file, title, description, tags, category_id='22'):
@@ -171,28 +183,49 @@ def upload_to_youtube(video_file, title, description, tags, category_id='22'):
     print(f'Video uploaded! Video ID: {response["id"]}')
 
 def process_tts_for_memes(memes):
-    with ThreadPoolExecutor() as executor:
-        futures = []
-        for meme in memes:
-            print(f"Reading title: {meme['title']}")
-            futures.append(executor.submit(asyncio.run, generate_tts(meme['title'], f"audio_{meme['title']}.mp3")))
-        
-        for future in futures:
-            future.result()
+    for meme in memes:
+        print(f"Generating TTS for: {meme['title']}")
+        asyncio.run(generate_tts(meme['title'], f"audio_{meme['id']}.mp3"))
 
-async def main():
-    subreddit_name = 'memes'
-    memes = scrape_reddit_memes(subreddit_name, limit=60)
+def main():
+    subreddit_name = 'dankmemes' 
+    sort_methods = ['hot', 'new', 'top', 'controversial']  
+    memes = scrape_reddit_memes(subreddit_name, limit=70, sort_methods=sort_methods)
+    memes = download_memes(memes)
     process_tts_for_memes(memes)
-    await download_memes_async(memes)
     video_file = 'meme_compilation.mp4'
     compile_memes(memes, video_file, duration_per_meme=3)
     title = 'Top 60 Memes of the Week | Reddit Meme Compilation'
     description = 'Check out these hilarious memes from Reddit!'
-    tags = ['memes', 'Reddit', 'meme compilation', 'AskReddit']
+    tags = [
+        'memes', 'Reddit', 'meme compilation', 'funny', 'dankmemes',
+        'dankmemesdaily', 'dankmemesonly', 'dankmemescomp', 'dankmemes4life',
+        'dankmemesgang', 'dankmemesaredank', 'dankmemesvideo', 'dankmemessociety',
+        'dankmemesmatter', 'dankmemesforlife', 'dankmemesedition', 'dankmemesforyou',
+        'dankmemesforever', 'dankmemesxd', 'dankmemes2025', 'dankmemescommunity',
+        'dankmemeshub', 'dankmemeslover', 'dankmemesfunny', 'dankmemesfactory',
+        'dankmemesclips', 'dankmemes2k24', 'dankmemespage', 'dankmemesclub',
+        'epicmemes', 'goodmemes', 'funnymemes', 'spicymemes', 'viralmemes',
+        'bestmemes', 'hilariousmemes', 'stupidmemes', 'memesfordays', 'memesdaily',
+        'memestagram', 'memecompilation', 'memefeed', 'memelord', 'memepage',
+        'relatablememes', 'offensivememes', 'darkhumor', 'edgymemes', 'comedy',
+        'memesofinstagram', 'memesfunny', 'memestime', 'freshmemes', 'dailymemes',
+        'funniestmemes', 'weirdmemes', 'randommemes', 'bestdankmemes', 'memeworld',
+        'memehumor', 'memesarelife', 'internetmemes', 'memeculture', 'edgymeme',
+        'viralcontent', 'shitposting', 'funnycontent', 'topmemes', 'humormemes',
+        'memetrend', 'trendingmemes', 'memelove', 'mememachine', 'memezone',
+        'dankmemecompilation', 'funnyvideos', 'comedyclips', 'memesforfun', 'lmao',
+        'wtfmemes', 'laughchallenge', 'memejunkie', 'memeaddict', 'memefan',
+        'memecollection', 'memefest', 'funnyclips', 'sillymemes', 'dumbmemes',
+        'memehype', 'dankvibes', 'jokes', 'crazyfunny', 'randomhumor',
+        'internetfunny', 'dailyfunnyposts', 'toofunny', 'humorclips', 'rofl',
+        'memecreator', 'lulz', 'classicmemes', 'memecomp', 'foryou',
+        'foryoupage', 'memeentertainment', 'lolmemes', 'haha', 'laughoutloud'
+    ]
+
     upload_to_youtube(video_file, title, description, tags)
 
 if __name__ == '__main__':
     start_time = time.time()
-    asyncio.run(main())
+    main()
     print(f"Process completed in {time.time() - start_time} seconds")
