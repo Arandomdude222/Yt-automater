@@ -16,7 +16,7 @@ import json
 # Reddit API credentials
 REDDIT_CLIENT_ID = '???'  # Replace with your Reddit Client ID
 REDDIT_CLIENT_SECRET = '???'  # Replace with your Reddit Client Secret
-REDDIT_USER_AGENT = 'python:YTautomater:v1.0 (by u/Username)'  # Replace with your User Agent
+REDDIT_USER_AGENT = 'python:YTautomater:v1.0 (by u/Username)'  # Put your username 
 
 # YouTube API credentials
 YOUTUBE_CLIENT_SECRET_FILE = 'sercet-token.json'  # Put it in the same dir
